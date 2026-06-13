@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: gestion-pieces-moto
+    env: node
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
