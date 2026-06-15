@@ -23,7 +23,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   document.querySelector(`[data-page="${name}"]`).classList.add('active');
-  const renders = {dashboard:renderDashboard,stock:renderStock,ventes:renderVentes,historique:renderHistorique,achats:renderAchats,fournisseurs:renderFournisseurs,clients:renderClients,rapports:renderRapports};
+  const renders = {dashboard:renderDashboard,stock:renderStock,ventes:renderVentes,historique:renderHistorique,achats:renderAchats,fournisseurs:renderFournisseurs,clients:renderClients,caisse:renderCaisse,rapports:renderRapports};
   if (renders[name]) renders[name]();
 }
 
@@ -63,7 +63,7 @@ function showTicket(v) {
 // ===== DASHBOARD =====
 async function renderDashboard() {
   const el = document.getElementById('page-dashboard');
-  const [stats, stockStats, ventes] = await Promise.all([
+  const [stats, stockStats, ventes, caisseJour] = await Promise.all([
     api('/api/ventes/stats'),
     api('/api/pieces/stats'),
     api('/api/ventes?limit=5')
@@ -79,6 +79,7 @@ async function renderDashboard() {
     </div>
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-label">CA aujourd'hui</div><div class="stat-value green">${dt(stats.ca_jour)}</div></div>
+      <div class="stat-card" style="border:1.5px solid #166534"><div class="stat-label">🎯 Profit net aujourd'hui</div><div class="stat-value green">${dt(stats.profit_net_jour)}</div></div>
       <div class="stat-card"><div class="stat-label">Ventes aujourd'hui</div><div class="stat-value blue">${stats.nb_ventes_jour}</div></div>
       <div class="stat-card"><div class="stat-label">CA ce mois</div><div class="stat-value">${dt(stats.ca_mois)}</div></div>
       <div class="stat-card"><div class="stat-label">Valeur du stock</div><div class="stat-value">${dt(stockStats.valeur_stock)}</div></div>
@@ -621,3 +622,152 @@ async function renderRapports() {
 
 // ===== INIT =====
 renderDashboard();
+
+// ===== CAISSE JOURNALIERE =====
+async function renderCaisse() {
+  const el = document.getElementById('page-caisse');
+  const today = new Date().toISOString().slice(0, 10);
+  const date = el._date || today;
+  const data = await api('/api/caisse?date=' + date);
+  const hist = await api('/api/caisse/historique?jours=30');
+
+  const profitColor = data.profit_net >= 0 ? 'green' : 'red';
+
+  el.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">💰 Caisse journalière</div><div class="page-sub">Recettes, dépenses et profit net</div></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="date" value="${date}" style="width:160px" onchange="document.getElementById('page-caisse')._date=this.value;renderCaisse()">
+        <button class="btn" onclick="document.getElementById('page-caisse')._date='${today}';renderCaisse()">Aujourd'hui</button>
+        <button class="btn btn-primary" onclick="modalDepense('${date}')">+ Ajouter dépense</button>
+      </div>
+    </div>
+
+    <!-- KPI du jour -->
+    <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+      <div class="stat-card">
+        <div class="stat-label">CA du jour</div>
+        <div class="stat-value blue">${dt(data.ca)}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">${data.nb_ventes} vente(s)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Coût des pièces vendues</div>
+        <div class="stat-value" style="color:#6b7280">- ${dt(data.cout_pieces)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Profit brut</div>
+        <div class="stat-value ${data.profit_brut >= 0 ? 'green' : 'red'}">${dt(data.profit_brut)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Dépenses</div>
+        <div class="stat-value orange">- ${dt(data.total_depenses)}</div>
+      </div>
+      <div class="stat-card" style="border:2px solid ${data.profit_net >= 0 ? '#166534' : '#991b1b'}">
+        <div class="stat-label">🎯 Profit net</div>
+        <div class="stat-value ${profitColor}" style="font-size:26px">${dt(data.profit_net)}</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Dépenses du jour -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">💸 Dépenses du jour</span>
+          <button class="btn btn-sm btn-primary" onclick="modalDepense('${date}')">+ Ajouter</button>
+        </div>
+        ${data.depenses.length ? `
+          <table>
+            <thead><tr><th>Libellé</th><th>Catégorie</th><th>Montant</th><th></th></tr></thead>
+            <tbody>
+              ${data.depenses.map(d => `
+                <tr>
+                  <td style="font-weight:500">${esc(d.libelle)}</td>
+                  <td><span class="badge badge-gray">${esc(d.categorie)}</span></td>
+                  <td style="font-weight:600;color:#991b1b">${dt(d.montant)}</td>
+                  <td><button class="btn btn-xs btn-danger" onclick="deleteDepense(${d.id})">🗑</button></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+          <div style="padding:10px 14px;background:#fef3c7;font-size:13px;font-weight:600;display:flex;justify-content:space-between">
+            <span>Total dépenses</span><span style="color:#92400e">${dt(data.total_depenses)}</span>
+          </div>` :
+          '<div class="empty-state"><div class="icon">💸</div><p>Aucune dépense ce jour</p></div>'
+        }
+      </div>
+
+      <!-- Ventes du jour -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">🛒 Ventes du jour</span></div>
+        ${data.ventes.length ? `
+          <table>
+            <thead><tr><th>Heure</th><th>Client</th><th>Paiement</th><th>Montant</th></tr></thead>
+            <tbody>
+              ${data.ventes.map(v => `
+                <tr>
+                  <td style="color:#6b7280">${new Date(v.date).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</td>
+                  <td>${esc(v.client_nom)}</td>
+                  <td><span class="badge badge-gray">${esc(v.mode_paiement)}</span></td>
+                  <td style="font-weight:600;color:#166534">${dt(v.total)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>` :
+          '<div class="empty-state"><div class="icon">🛒</div><p>Aucune vente ce jour</p></div>'
+        }
+      </div>
+    </div>
+
+    <!-- Historique 30 jours -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">📅 Historique — 30 derniers jours</span></div>
+      <table>
+        <thead><tr><th>Date</th><th>Ventes</th><th>CA</th><th>Coût pièces</th><th>Dépenses</th><th>Profit brut</th><th>Profit net</th></tr></thead>
+        <tbody>
+          ${hist.length ? hist.map(h => `
+            <tr style="cursor:pointer" onclick="document.getElementById('page-caisse')._date='${h.jour}';renderCaisse()">
+              <td style="font-weight:500">${new Date(h.jour+'T12:00:00').toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'})}</td>
+              <td>${h.nb_ventes}</td>
+              <td style="color:#1565a0;font-weight:600">${dt(h.ca)}</td>
+              <td style="color:#6b7280">- ${dt(h.cout_pieces)}</td>
+              <td style="color:#b45309">- ${dt(h.depenses)}</td>
+              <td style="font-weight:600;color:${h.profit_brut>=0?'#166534':'#991b1b'}">${dt(h.profit_brut)}</td>
+              <td><span class="badge ${h.profit_net>=0?'badge-ok':'badge-out'}" style="font-size:12px">${dt(h.profit_net)}</span></td>
+            </tr>`).join('') :
+            '<tr><td colspan="7"><div class="empty-state"><div class="icon">📅</div><p>Aucun historique</p></div></td></tr>'
+          }
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function modalDepense(date) {
+  const cats = ['Loyer','Électricité','Transport','Salaire','Fournitures','Téléphone','Autre'];
+  openModal('Ajouter une dépense', `
+    <div class="form-row"><label>Libellé *</label><input id="dep-lib" placeholder="ex: Loyer du mois, Électricité..."></div>
+    <div class="form-grid-2">
+      <div class="form-row"><label>Montant (DT) *</label><input id="dep-montant" type="number" step="0.001" placeholder="0.000"></div>
+      <div class="form-row"><label>Catégorie</label>
+        <select id="dep-cat">${cats.map(c=>`<option>${c}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="form-row"><label>Date</label><input id="dep-date" type="date" value="${date}"></div>`,
+    `<button class="btn" onclick="closeModal()">Annuler</button>
+     <button class="btn btn-primary" onclick="saveDepense()">Enregistrer</button>`);
+}
+
+async function saveDepense() {
+  const libelle = document.getElementById('dep-lib').value.trim();
+  const montant = parseFloat(document.getElementById('dep-montant').value);
+  if (!libelle || !montant) { alert('Libellé et montant obligatoires'); return; }
+  await api('/api/depenses', 'POST', {
+    libelle, montant,
+    categorie: document.getElementById('dep-cat').value,
+    date: document.getElementById('dep-date').value
+  });
+  closeModal(); renderCaisse();
+}
+
+async function deleteDepense(id) {
+  if (!confirm('Supprimer cette dépense ?')) return;
+  await api('/api/depenses/' + id, 'DELETE');
+  renderCaisse();
+}
