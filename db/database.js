@@ -67,6 +67,14 @@ function initSchema(db) {
       id INTEGER PRIMARY KEY AUTOINCREMENT, achat_id INTEGER NOT NULL, piece_id INTEGER,
       piece_nom TEXT, quantite INTEGER, prix_unitaire REAL, total REAL
     );
+    CREATE TABLE IF NOT EXISTS depenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      libelle TEXT NOT NULL,
+      montant REAL NOT NULL,
+      categorie TEXT DEFAULT 'Autre',
+      date TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
