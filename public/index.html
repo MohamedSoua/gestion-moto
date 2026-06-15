@@ -31,7 +31,8 @@
     <a class="nav-item" data-page="achats">🚚 Achats & réceptions</a>
     <a class="nav-item" data-page="fournisseurs">🏭 Fournisseurs</a>
     <a class="nav-item" data-page="clients">👥 Clients</a>
-    <div class="nav-section">Analyse</div>
+    <div class="nav-section">Finance</div>
+    <a class="nav-item" data-page="caisse">💰 Caisse journalière</a>
     <a class="nav-item" data-page="rapports">📈 Rapports & stats</a>
   </nav>
 </div>
@@ -44,6 +45,7 @@
   <div id="page-achats" class="page"></div>
   <div id="page-fournisseurs" class="page"></div>
   <div id="page-clients" class="page"></div>
+  <div id="page-caisse" class="page"></div>
   <div id="page-rapports" class="page"></div>
 </div>
 
@@ -60,7 +62,10 @@
 
 <div id="ticket-overlay" class="modal-overlay">
   <div class="modal" style="max-width:420px">
-    <div class="modal-header"><h3>🧾 Ticket de vente</h3><button onclick="closeTicket()" class="btn btn-sm">✕</button></div>
+    <div class="modal-header">
+      <h3>🧾 Ticket de vente</h3>
+      <button onclick="closeTicket()" class="btn btn-sm">✕</button>
+    </div>
     <div class="modal-body" id="ticket-body"></div>
     <div class="modal-footer">
       <button class="btn" onclick="window.print()">🖨️ Imprimer</button>
